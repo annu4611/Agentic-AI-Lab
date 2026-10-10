@@ -8,7 +8,7 @@ The system evaluates hospital bills against insurance policy clauses, separating
 
 ## 🌐 Live Demo
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](YOUR_STREAMLIT_DEPLOYMENT_URL_HERE)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://agentic-ai-lab-smartclaim-engine.streamlit.app/)
 
 👉 **Try the Live Application:** [SmartClaim-Engine on Streamlit Cloud](YOUR_STREAMLIT_DEPLOYMENT_URL_HERE)
 
