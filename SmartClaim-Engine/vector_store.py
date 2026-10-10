@@ -24,16 +24,25 @@ def get_vectorstore(pdf_path: str, index_dir: str = None, force_rebuild: bool = 
     )
 
     # Determine unique cache dir based on filename or explicit directory
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     if index_dir is None:
         file_stem = os.path.splitext(os.path.basename(pdf_path))[0]
-        # Keep default directory if default elevate.pdf
+        # Keep default directory if default elevate.pdf or generic policy
         if "elevate" in file_stem.lower():
-            index_dir = "faiss_index"
+            index_dir = os.path.join(base_dir, "faiss_index")
         else:
-            index_dir = os.path.join("faiss_index", file_stem)
+            index_dir = os.path.join(base_dir, "faiss_index", file_stem)
+    elif not os.path.isabs(index_dir):
+        index_dir = os.path.join(base_dir, index_dir)
+
+    # Fallback to base faiss_index if candidate index doesn't exist but default faiss_index does
+    if not (os.path.exists(os.path.join(index_dir, "index.faiss"))):
+        default_idx = os.path.join(base_dir, "faiss_index")
+        if os.path.exists(os.path.join(default_idx, "index.faiss")):
+            index_dir = default_idx
 
     # Reuse vector store if already built and not forced
-    if os.path.exists(index_dir) and not force_rebuild:
+    if os.path.exists(os.path.join(index_dir, "index.faiss")) and not force_rebuild:
         print(f"Loading existing vector database from '{index_dir}'...")
         return FAISS.load_local(index_dir, embeddings, allow_dangerous_deserialization=True)
 
