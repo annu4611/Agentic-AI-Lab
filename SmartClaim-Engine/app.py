@@ -43,20 +43,32 @@ st.markdown("""
 
 DEFAULT_POLICY_PATH = os.getenv("POLICY_PDF_PATH", "C:/Users/KINAL/Downloads/elevate.pdf")
 
+# Friendly quota notification helper
+def show_quota_exhausted_message():
+    st.error("⏳ **Daily Gemini API Limit Exceeded**\n\nThe daily quota for Google Gemini API has been reached for today. Please come back later or try again tomorrow.")
+    st.info("💡 *Tip:* If you have your own Google Gemini API key, you can update `GOOGLE_API_KEY` in `.env` (or Streamlit Secrets) to resume immediately without waiting.")
+
 # 1. Dynamic Agent Builder (Re-builds or re-points retriever when a custom policy PDF is uploaded)
 @st.cache_resource(show_spinner="Indexing insurance policy document...")
 def get_graph_agent(policy_pdf_path: str):
     if not os.path.exists(policy_pdf_path):
         return None
-    vectorstore = get_vectorstore(policy_pdf_path)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-3.5-flash-lite",
-        google_api_key=os.getenv("GOOGLE_API_KEY"),
-        temperature=0.1
-    )
-    memory = MemorySaver()
-    return build_graph(llm, retriever, checkpointer=memory)
+    try:
+        vectorstore = get_vectorstore(policy_pdf_path)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-3.5-flash-lite",
+            google_api_key=os.getenv("GOOGLE_API_KEY"),
+            temperature=0.1
+        )
+        memory = MemorySaver()
+        return build_graph(llm, retriever, checkpointer=memory)
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+            st.session_state["quota_exceeded"] = True
+            return None
+        raise e
 
 # Initialize Session State
 if "thread_id" not in st.session_state:
@@ -123,6 +135,9 @@ with st.sidebar:
 app = None
 if st.session_state.active_policy_path:
     app = get_graph_agent(st.session_state.active_policy_path)
+    if app is None and st.session_state.get("quota_exceeded"):
+        show_quota_exhausted_message()
+        st.stop()
 
 # --- MAIN CHAT AREA ---
 st.title("🏥 SmartClaim-Engine")
@@ -236,7 +251,17 @@ if pending_submission and active_query and app:
                     payload["bill_path"] = bill_temp_path
                     payload["is_claim_submission"] = True
 
-            result = app.invoke(payload, config=config)
+            try:
+                result = app.invoke(payload, config=config)
+            except Exception as e:
+                err_msg = str(e).lower()
+                if "429" in err_msg or "resource_exhausted" in err_msg or "quota" in err_msg:
+                    show_quota_exhausted_message()
+                    st.stop()
+                else:
+                    st.error(f"An unexpected error occurred during processing: {e}")
+                    st.stop()
+
             assistant_text = result.get("answer", "No response generated.")
             st.markdown(assistant_text)
 
